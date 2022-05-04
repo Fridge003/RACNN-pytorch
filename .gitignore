@@ -4,3 +4,4 @@ external/
 __pycache__
 *.pt
 *.log
+CUB_200_2011/

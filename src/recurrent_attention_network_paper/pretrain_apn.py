@@ -49,8 +49,8 @@ def run(pretrained_backbone=None):
     params = list(net.apn1.parameters()) + list(net.apn2.parameters())
     optimizer = optim.SGD(params, lr=0.001, momentum=0.9)
 
-    trainset = CUB200_loader('external/CUB_200_2011', split='train')
-    testset = CUB200_loader('external/CUB_200_2011', split='test')
+    trainset = CUB200_loader('../CUB_200_2011', split='train')
+    testset = CUB200_loader('../CUB_200_2011', split='test')
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=2, shuffle=True, collate_fn=trainset.CUB_collate, num_workers=4)
     testloader = torch.utils.data.DataLoader(testset, batch_size=2, shuffle=False, collate_fn=testset.CUB_collate, num_workers=4)
     sample = random_sample(testloader)

@@ -8,11 +8,15 @@ Referred from [another cool pytorch implementation](https://github.com/jeong-tae
 
 - python
 
-- pytorch 1.2.0
+- pytorch=1.2.0
 
-- torchvision 0.4.0
+- torchvision=0.4.0
 
 - matplotlib
+- pillow=6.1
+- imageio
+- torchstat
+- opencv
 
 ## Changes
 

@@ -69,8 +69,8 @@ def run(pretrained_model):
     cls_opt = optim.SGD(cls_params, lr=0.001, momentum=0.9)
     apn_opt = optim.SGD(apn_params, lr=0.001, momentum=0.9)
 
-    trainset = CUB200_loader('external/CUB_200_2011', split='train')
-    testset = CUB200_loader('external/CUB_200_2011', split='test')
+    trainset = CUB200_loader('../CUB_200_2011', split='train')
+    testset = CUB200_loader('../CUB_200_2011', split='test')
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, collate_fn=trainset.CUB_collate, num_workers=4)
     testloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, collate_fn=testset.CUB_collate, num_workers=4)
     sample = random_sample(testloader)
