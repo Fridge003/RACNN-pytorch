@@ -17,18 +17,18 @@ from torch.autograd import Variable
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
-
 def log(msg):
     open('build/core.log', 'a').write(f'[{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())}]\t'+msg+'\n'), print(msg)
 
 
-def eval(net, dataloader):
+
+def eval(net, dataloader, device):
     log(' :: Testing on test set ...')
     correct_top1 = 0
     correct_top3 = 0
     correct_top5 = 0
     for step, (inputs, labels) in enumerate(dataloader, 0):
-        inputs, labels = Variable(inputs).cuda(), Variable(labels).cuda()
+        inputs, labels = Variable(inputs).to(device), Variable(labels).to(device)
 
         with torch.no_grad():
             logits = net(inputs)
@@ -44,10 +44,12 @@ def eval(net, dataloader):
 
 
 def run():
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print('device: ', device)
     state_dict = torchvision.models.mobilenet.mobilenet_v2(pretrained=True).state_dict()
     state_dict.pop('classifier.1.weight')
     state_dict.pop('classifier.1.bias')
-    net = torchvision.models.mobilenet.mobilenet_v2(num_classes=200).cuda()
+    net = torchvision.models.mobilenet.mobilenet_v2(num_classes=200).to(device)
     state_dict['classifier.1.weight'] = net.state_dict()['classifier.1.weight']
     state_dict['classifier.1.bias'] = net.state_dict()['classifier.1.bias']
     net.load_state_dict(state_dict)
@@ -67,7 +69,7 @@ def run():
     for epoch in range(100):  # loop over the dataset multiple times
         losses = 0
         for step, (inputs, labels) in enumerate(trainloader, 0):
-            inputs, labels = Variable(inputs).cuda(), Variable(labels).cuda()
+            inputs, labels = Variable(inputs).to(device), Variable(labels).to(device)
 
             optimizer.zero_grad()
             outputs = net(inputs)
@@ -81,7 +83,7 @@ def run():
                 avg_loss = losses/20
                 log(f':: loss @step({step:2d}/{len(trainloader)})-epoch{epoch}: {loss:.10f}\tavg_loss_20: {avg_loss:.10f}')
                 losses = 0
-        eval(net, testloader)
+        eval(net, testloader, device)
         if epoch % 20 == 0 and epoch != 0:
             stamp = f'e{epoch}{int(time.time())}'
             torch.save(net, f'build/mobilenet_v2_cub200-{stamp}.pt')

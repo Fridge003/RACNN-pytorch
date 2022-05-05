@@ -17,6 +17,8 @@ Referred from [another cool pytorch implementation](https://github.com/jeong-tae
 - imageio
 - torchstat
 - opencv
+- tensorboard
+- tensorboardX
 
 ## Changes
 
