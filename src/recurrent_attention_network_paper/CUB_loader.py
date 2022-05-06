@@ -130,7 +130,8 @@ class CUB200_loader(data.Dataset):
 
 
 if __name__ == '__main__':
-    trainset = CUB200_loader('../CUB_200_2011')
+    trainset = CUB200_loader('../CUB_200_2011', split='train')
+    print('len of training dataset:', len(trainset))
     trainloader = data.DataLoader(trainset, batch_size=32,
                                   shuffle=False, collate_fn=trainset.CUB_collate, num_workers=1)
     for img, cls in trainloader:
@@ -138,11 +139,12 @@ if __name__ == '__main__':
         print(' [*] train class:', cls.size())
         break
 
-    testset = CUB200_loader('../CUB_200_2011')
+    testset = CUB200_loader('../CUB_200_2011', split='test')
+    print('len of testing dataset:', len(testset))
     testloader = data.DataLoader(testset, batch_size=32,
                                  shuffle=False, collate_fn=testset.CUB_collate, num_workers=1)
 
-    for img, cls in trainloader:
+    for img, cls in testloader:
         print(' [*] test images:', img.size())
         print(' [*] test class:', cls.size())
         break

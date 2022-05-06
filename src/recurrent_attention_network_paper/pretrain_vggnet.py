@@ -9,11 +9,16 @@ import torch.backends.cudnn as cudnn
 import torch.nn.functional as F
 import torchvision
 import matplotlib.pyplot as plt
+import tensorboard
+import tensorboardX
 
 sys.path.append('.')  # noqa: E402
 from src.recurrent_attention_network_paper.model import RACNN
 from src.recurrent_attention_network_paper.CUB_loader import CUB200_loader
 from torch.autograd import Variable
+
+
+# use tensorboard for logging
 
 
 def log(msg):
@@ -45,10 +50,10 @@ def eval(net, dataloader, device):
 def run():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print('device: ', device)
-    state_dict = torchvision.models.mobilenet.mobilenet_v2(pretrained=True).state_dict()
+    state_dict = torchvision.models.vgg19_bn(pretrained=True).state_dict()
     state_dict.pop('classifier.1.weight')
     state_dict.pop('classifier.1.bias')
-    net = torchvision.models.mobilenet.mobilenet_v2(num_classes=200).to(device)
+    net = torchvision.models.vgg19_bn(num_classes=200).to(device)
     state_dict['classifier.1.weight'] = net.state_dict()['classifier.1.weight']
     state_dict['classifier.1.bias'] = net.state_dict()['classifier.1.bias']
     net.load_state_dict(state_dict)
@@ -59,13 +64,13 @@ def run():
 
     trainset = CUB200_loader('../CUB_200_2011', split='train')
     testset = CUB200_loader('../CUB_200_2011', split='test')
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, collate_fn=trainset.CUB_collate, num_workers=4)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=4, shuffle=False, collate_fn=testset.CUB_collate, num_workers=4)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=8, shuffle=True, collate_fn=trainset.CUB_collate, num_workers=4)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, collate_fn=testset.CUB_collate, num_workers=4)
 
     # classes = [line.split(' ')[1] for line in open('../CUB_200_2011/classes.txt', 'r').readlines()]
     log(' :: Start training ...')
 
-    for epoch in range(100):  # loop over the dataset multiple times
+    for epoch in range(101):  # loop over the dataset multiple times
         losses = 0
         for step, (inputs, labels) in enumerate(trainloader, 0):
             inputs, labels = Variable(inputs).to(device), Variable(labels).to(device)

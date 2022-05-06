@@ -6,7 +6,7 @@ Referred from [another cool pytorch implementation](https://github.com/jeong-tae
 
 ## Requirements
 
-- python
+- python=3.7
 
 - pytorch=1.2.0
 
