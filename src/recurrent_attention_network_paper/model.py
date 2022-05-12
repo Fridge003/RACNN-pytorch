@@ -92,23 +92,23 @@ class RACNN(nn.Module):
     def __init__(self, num_classes, img_scale=448):
         super(RACNN, self).__init__()
 
-        self.b1 = mobilenet.mobilenet_v2(num_classes=num_classes)
-        self.b2 = mobilenet.mobilenet_v2(num_classes=num_classes)
-        self.b3 = mobilenet.mobilenet_v2(num_classes=num_classes)
-        self.classifier1 = nn.Linear(320, num_classes)
-        self.classifier2 = nn.Linear(320, num_classes)
-        self.classifier3 = nn.Linear(320, num_classes)
+        self.b1 = vgg19_bn(num_classes=num_classes)
+        self.b2 = vgg19_bn(num_classes=num_classes)
+        self.b3 = vgg19_bn(num_classes=num_classes)
+        self.classifier1 = nn.Linear(512, num_classes)
+        self.classifier2 = nn.Linear(512, num_classes)
+        self.classifier3 = nn.Linear(512, num_classes)
         self.feature_pool = torch.nn.AdaptiveAvgPool2d(output_size=1)
         self.atten_pool = nn.MaxPool2d(kernel_size=2, stride=2)
         self.crop_resize = AttentionCropLayer()
         self.apn1 = nn.Sequential(
-            nn.Linear(320 * 14 * 14, 1024),
+            nn.Linear(512 * 14 * 14, 1024),
             nn.Tanh(),
             nn.Linear(1024, 3),
             nn.Sigmoid(),
         )
         self.apn2 = nn.Sequential(
-            nn.Linear(320 * 7 * 7, 1024),
+            nn.Linear(512 * 7 * 7, 1024),
             nn.Tanh(),
             nn.Linear(1024, 3),
             nn.Sigmoid(),
@@ -120,23 +120,23 @@ class RACNN(nn.Module):
         rescale_tl = torch.tensor([1, 1, 0.5], requires_grad=False).cuda()
         # forward @scale-1
         # abandon the fc layer and the last CNN layer of the backbone model(VGG Net)
-        feature_s1 = self.b1.features[:-1](x)  # torch.Size([b, 512, 14, 14])
+        feature_s1 = self.b1.features(x)  # torch.Size([b, 512, 14, 14])
         pool_s1 = self.feature_pool(feature_s1) # torch.Size([b, 512, 1, 1])
-        _attention_s1 = self.apn1(feature_s1.view(-1, 320 * 14 * 14))
+        _attention_s1 = self.apn1(feature_s1.view(-1, 512 * 14 * 14))
         attention_s1 = _attention_s1 * rescale_tl # t_l should be no more than half of the length
         resized_s1 = self.crop_resize(x, attention_s1 * x.shape[-1])
         # forward @scale-2
-        feature_s2 = self.b2.features[:-1](resized_s1)  # torch.Size([b, 320, 7, 7])
+        feature_s2 = self.b2.features(resized_s1)  # torch.Size([b, 512, 7, 7])
         pool_s2 = self.feature_pool(feature_s2)
-        _attention_s2 = self.apn2(feature_s2.view(-1, 320 * 7 * 7))
+        _attention_s2 = self.apn2(feature_s2.view(-1, 512 * 7 * 7))
         attention_s2 = _attention_s2 * rescale_tl
         resized_s2 = self.crop_resize(resized_s1, attention_s2 * resized_s1.shape[-1])
         # forward @scale-3
-        feature_s3 = self.b3.features[:-1](resized_s2)
+        feature_s3 = self.b3.features(resized_s2)
         pool_s3 = self.feature_pool(feature_s3)
-        pred1 = self.classifier1(pool_s1.view(-1, 320))
-        pred2 = self.classifier2(pool_s2.view(-1, 320))
-        pred3 = self.classifier3(pool_s3.view(-1, 320))
+        pred1 = self.classifier1(pool_s1.view(-1, 512))
+        pred2 = self.classifier2(pool_s2.view(-1, 512))
+        pred3 = self.classifier3(pool_s3.view(-1, 512))
         return [pred1, pred2, pred3], [feature_s1, feature_s2], [attention_s1, attention_s2], [resized_s1, resized_s2]
 
     def __get_weak_loc(self, features):
@@ -159,6 +159,8 @@ class RACNN(nn.Module):
     def multitask_loss(logits, targets):
         loss = []
         for i in range(len(logits)):
+            # logits : (num_backbones, batch_size, 200)
+            # targets: (batch_size)
             loss.append(F.cross_entropy(logits[i], targets))
         loss = torch.sum(torch.stack(loss))
         return loss
