@@ -16,9 +16,6 @@ from src.recurrent_attention_network_paper.model import RACNN
 from src.recurrent_attention_network_paper.CUB_loader import CUB200_loader
 from torch.autograd import Variable
 
-
-
-
 def eval(net, dataloader, device, writer, total_step):
     print(' :: Testing on test set ...')
     correct_top1 = 0
@@ -49,10 +46,10 @@ def run(save_path):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print('device: ', device)
 
-    state_dict = torchvision.models.vgg16_bn(pretrained=True).state_dict()
+    state_dict = torchvision.models.vgg19_bn(pretrained=True).state_dict()
     state_dict.pop('classifier.6.weight')
     state_dict.pop('classifier.6.bias')
-    net = torchvision.models.vgg16_bn(num_classes=200).to(device)
+    net = torchvision.models.vgg19_bn(num_classes=200).to(device)
     state_dict['classifier.6.weight'] = net.state_dict()['classifier.6.weight']
     state_dict['classifier.6.bias'] = net.state_dict()['classifier.6.bias']
     net.load_state_dict(state_dict)

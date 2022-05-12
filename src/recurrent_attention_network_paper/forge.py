@@ -98,6 +98,6 @@ def run(pretrained_model):
 if __name__ == "__main__":
     clean()
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-    run(pretrained_model='build/racnn_pretrained-1577771401.pt')
+    run(pretrained_model='build/racnn_pretrained.pt')
     build_gif(pattern='@2x', gif_name='racnn_cub200')
     build_gif(pattern='@4x', gif_name='racnn_cub200')

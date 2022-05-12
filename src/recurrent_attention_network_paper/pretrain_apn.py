@@ -38,7 +38,7 @@ def save_img(x, path, annotation=''):
 
 def run(pretrained_backbone=None):
     net = RACNN(num_classes=200).cuda()
-    if pretrained_backbone:  # Using pretrained backbone for apn pretraining
+    if pretrained_backbone:  # Using pretrained backbone for apn pretraining (VGG or mobilenet)
         state_dict = torch.load(pretrained_backbone).state_dict()
         net.b1.load_state_dict(state_dict)
         net.b2.load_state_dict(state_dict)
@@ -51,8 +51,8 @@ def run(pretrained_backbone=None):
 
     trainset = CUB200_loader('../CUB_200_2011', split='train')
     testset = CUB200_loader('../CUB_200_2011', split='test')
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=2, shuffle=True, collate_fn=trainset.CUB_collate, num_workers=4)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=2, shuffle=False, collate_fn=testset.CUB_collate, num_workers=4)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=8, shuffle=True, collate_fn=trainset.CUB_collate, num_workers=4)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, collate_fn=testset.CUB_collate, num_workers=4)
     sample = random_sample(testloader)
     net.mode("pretrain_apn")
 
@@ -96,6 +96,6 @@ def clean(path='build/.cache/'):
 if __name__ == "__main__":
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     clean()
-    run(pretrained_backbone='build/mobilenet_v2_cub200-e801577256085.pt')
+    run(pretrained_backbone='build/pretrained_vgg.pt')
     build_gif(pattern='@2x', gif_name='pretrain_apn_cub200')
     build_gif(pattern='@4x', gif_name='pretrain_apn_cub200')

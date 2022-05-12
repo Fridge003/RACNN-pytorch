@@ -4,12 +4,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from torchvision.models import mobilenet
+from torchvision.models import vgg19_bn
 
 
 class AttentionCropFunction(torch.autograd.Function):
     @staticmethod
     def forward(self, images, locs):
-        def h(_x): return 1 / (1 + torch.exp(-10 * _x.float()))
+        def h(_x): return 1 / (1 + torch.exp(-10 * _x.float())) # sigmoid function, here k = 10
         in_size = images.size()[2]
         unit = torch.stack([torch.arange(0, in_size)] * in_size)
         x = torch.stack([unit.t()] * 3)
@@ -21,6 +22,7 @@ class AttentionCropFunction(torch.autograd.Function):
         ret = []
         for i in range(images.size(0)):
             tx, ty, tl = locs[i][0], locs[i][1], locs[i][2]
+            # add constraints to tx, ty, tl
             tl = tl if tl > (in_size/3) else in_size/3
             tx = tx if tx > tl else tl
             tx = tx if tx < in_size-tl else in_size-tl
@@ -37,6 +39,7 @@ class AttentionCropFunction(torch.autograd.Function):
 
             xatt_cropped = xatt[:, w_off: w_end, h_off: h_end]
             before_upsample = Variable(xatt_cropped.unsqueeze(0))
+            # upsample to 224 rather than 448
             xamp = F.upsample(before_upsample, size=(224, 224), mode='bilinear', align_corners=True)
             ret.append(xamp.data.squeeze())
 
@@ -78,7 +81,7 @@ class AttentionCropLayer(nn.Module):
     """
         Crop function sholud be implemented with the nn.Function.
         Detailed description is in 'Attention localization and amplification' part.
-        Forward function will not changed. backward function will not opearate with autograd, but munually implemented function
+        Forward function will not be changed. backward function will not opearate with autograd, but manually implemented function
     """
 
     def forward(self, images, locs):
@@ -116,16 +119,17 @@ class RACNN(nn.Module):
         batch_size = x.shape[0]
         rescale_tl = torch.tensor([1, 1, 0.5], requires_grad=False).cuda()
         # forward @scale-1
-        feature_s1 = self.b1.features[:-1](x)  # torch.Size([1, 320, 14, 14])
-        pool_s1 = self.feature_pool(feature_s1)
+        # abandon the fc layer and the last CNN layer of the backbone model(VGG Net)
+        feature_s1 = self.b1.features[:-1](x)  # torch.Size([b, 512, 14, 14])
+        pool_s1 = self.feature_pool(feature_s1) # torch.Size([b, 512, 1, 1])
         _attention_s1 = self.apn1(feature_s1.view(-1, 320 * 14 * 14))
-        attention_s1 = _attention_s1*rescale_tl
+        attention_s1 = _attention_s1 * rescale_tl # t_l should be no more than half of the length
         resized_s1 = self.crop_resize(x, attention_s1 * x.shape[-1])
         # forward @scale-2
-        feature_s2 = self.b2.features[:-1](resized_s1)  # torch.Size([1, 320, 7, 7])
+        feature_s2 = self.b2.features[:-1](resized_s1)  # torch.Size([b, 320, 7, 7])
         pool_s2 = self.feature_pool(feature_s2)
         _attention_s2 = self.apn2(feature_s2.view(-1, 320 * 7 * 7))
-        attention_s2 = _attention_s2*rescale_tl
+        attention_s2 = _attention_s2 * rescale_tl
         resized_s2 = self.crop_resize(resized_s1, attention_s2 * resized_s1.shape[-1])
         # forward @scale-3
         feature_s3 = self.b3.features[:-1](resized_s2)
@@ -139,16 +143,36 @@ class RACNN(nn.Module):
         ret = []   # search regions with the highest response value in conv5
         for i in range(len(features)):
             resize = 224 if i >= 1 else 448
-            response_map_batch = F.interpolate(features[i], size=[resize, resize], mode="bilinear").mean(1)  # mean alone channels
+            response_map_batch = F.interpolate(features[i], size=[resize, resize], mode="bilinear").mean(1)  # mean along channels
             ret_batch = []
+            # response_map: resize * resize
             for response_map in response_map_batch:
                 argmax_idx = response_map.argmax()
                 ty = (argmax_idx % resize)
                 argmax_idx = (argmax_idx - ty)/resize
                 tx = (argmax_idx % resize)
-                ret_batch.append([(tx*1.0/resize).clamp(min=0.25, max=0.75), (ty*1.0/resize).clamp(min=0.25, max=0.75), 0.25])  # tl = 0.25, fixed
+                ret_batch.append([(tx*1.0/resize).clamp(min=0.25, max=0.75), (ty*1.0/resize).clamp(min=0.25, max=0.75), 0.25])  # tl = 0.25, fixed, might be modified
             ret.append(torch.Tensor(ret_batch))
         return ret
+
+    @staticmethod
+    def multitask_loss(logits, targets):
+        loss = []
+        for i in range(len(logits)):
+            loss.append(F.cross_entropy(logits[i], targets))
+        loss = torch.sum(torch.stack(loss))
+        return loss
+
+    # the value of margin here can be modified
+    @staticmethod
+    def rank_loss(logits, targets, margin=0.05):
+        preds = [F.softmax(x, dim=-1) for x in logits]
+        set_pt = [[scaled_pred[batch_inner_id][target] for scaled_pred in preds] for batch_inner_id, target in enumerate(targets)]
+        loss = 0
+        for batch_inner_id, pts in enumerate(set_pt):
+            loss += (pts[0] - pts[1] + margin).clamp(min=0)
+            loss += (pts[1] - pts[2] + margin).clamp(min=0)
+        return loss
 
     def __echo_pretrain_apn(self, inputs, optimizer):
         inputs = Variable(inputs).cuda()
@@ -161,24 +185,6 @@ class RACNN(nn.Module):
         loss.backward()
         optimizer.step()
         return loss.item()
-
-    @staticmethod
-    def multitask_loss(logits, targets):
-        loss = []
-        for i in range(len(logits)):
-            loss.append(F.cross_entropy(logits[i], targets))
-        loss = torch.sum(torch.stack(loss))
-        return loss
-
-    @staticmethod
-    def rank_loss(logits, targets, margin=0.05):
-        preds = [F.softmax(x, dim=-1) for x in logits]
-        set_pt = [[scaled_pred[batch_inner_id][target] for scaled_pred in preds] for batch_inner_id, target in enumerate(targets)]
-        loss = 0
-        for batch_inner_id, pts in enumerate(set_pt):
-            loss += (pts[0] - pts[1] + margin).clamp(min=0)
-            loss += (pts[1] - pts[2] + margin).clamp(min=0)
-        return loss
 
     def __echo_backbone(self, inputs, targets, optimizer):
         inputs, targets = Variable(inputs).cuda(), Variable(targets).cuda()
@@ -212,7 +218,8 @@ class RACNN(nn.Module):
 
 
 if __name__ == "__main__":
-    net = RACNN(num_classes=8).cuda()
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    net = RACNN(num_classes=8).to(device)
     net.mode('pretrain_apn')
     optimizer = torch.optim.SGD(list(net.apn1.parameters()) + list(net.apn2.parameters()), lr=0.001, momentum=0.9)
     for i in range(50):
