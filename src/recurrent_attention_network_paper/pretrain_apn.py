@@ -66,7 +66,7 @@ def run(pretrained_backbone=None, save_path='./apn_pretrain_result'):
             if step % 2 == 0:  # check point
                 _, _, _, resized_1 = net(sample1.unsqueeze(0))
                 x1, x2 = resized_1[0].data, resized_1[1].data
-                _, _, _, resized2 = net(sample2.unsqueeze(0))
+                _, _, _, resized_2 = net(sample2.unsqueeze(0))
                 x3, x4 = resized_2[0].data, resized_2[1].data
                 # visualize cropped inputs
 
@@ -106,7 +106,7 @@ def clean(path):
 if __name__ == "__main__":
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     save_path = './apn_pretrain_result'
-    clean(save_path)
+    clean(path=save_path)
 
     run(pretrained_backbone='build/pretrained_vgg.pt', save_path=save_path)
     build_gif(pattern='@2x_1', gif_name='pretrain_apn_cub200')

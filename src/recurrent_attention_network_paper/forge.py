@@ -9,6 +9,7 @@ import torch.backends.cudnn as cudnn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import matplotlib.pyplot as plt
+from tensorboardX import SummaryWriter
 
 sys.path.append('.')  # noqa: E402
 from src.recurrent_attention_network_paper.model import RACNN
@@ -20,25 +21,33 @@ from src.recurrent_attention_network_paper.pretrain_apn import random_sample, sa
 def avg(x): return sum(x)/len(x)
 
 
-def train(net, dataloader, optimizer, epoch, _type):
+def train(net, dataloader, optimizer, epoch, _type, writer, total_step):
+
     assert _type in ['apn', 'backbone']
     losses = 0
-    net.mode(_type), log(f' :: Switch to {_type}')  # switch loss type
+    net.mode(_type)
+    print(f' :: Switch to {_type}')  # switch loss type
+
     for step, (inputs, targets) in enumerate(dataloader, 0):
         loss = net.echo(inputs, targets, optimizer)
+        writer.add_scalar('Train/step_loss', loss, total_step)
         losses += loss
+        total_step += 1
 
         if step % 20 == 0 and step != 0:
             avg_loss = losses/20
-            log(f':: loss @step({step:2d}/{len(dataloader)})-epoch{epoch}: {loss:.10f}\tavg_loss_20: {avg_loss:.10f}')
+            print(f':: loss @step({step:2d}/{len(dataloader)})-epoch{epoch}: {loss:.10f}\tavg_loss_20: {avg_loss:.10f}')
+            writer.add_scalar('Train/avg_loss', avg_loss, total_step)
             losses = 0
 
-    return avg_loss
+    return total_step
 
 
-def test(net, dataloader):
-    log(' :: Testing on test set ...')
+def test(net, dataloader, writer, epoch):
+
+    print(' :: Testing on test set ...')
     correct_summary = {'clsf-0': {'top-1': 0, 'top-5': 0}, 'clsf-1': {'top-1': 0, 'top-5': 0}, 'clsf-2': {'top-1': 0, 'top-5': 0}}
+
     for step, (inputs, labels) in enumerate(dataloader, 0):
         inputs, labels = Variable(inputs).cuda(), Variable(labels).cuda()
 
@@ -48,16 +57,20 @@ def test(net, dataloader):
                 correct_summary[f'clsf-{idx}']['top-1'] += torch.eq(logits.topk(max((1, 1)), 1, True, True)[1], labels.view(-1, 1)).sum().float().item()  # top-1
                 correct_summary[f'clsf-{idx}']['top-5'] += torch.eq(logits.topk(max((1, 5)), 1, True, True)[1], labels.view(-1, 1)).sum().float().item()  # top-5
 
-            if step > 200:
+            if step > 300: # only use a portion of the test-dataset for testing
                 for clsf in correct_summary.keys():
                     _summary = correct_summary[clsf]
                     for topk in _summary.keys():
-                        log(f'\tAccuracy {clsf}@{topk} ({step}/{len(dataloader)}) = {_summary[topk]/((step+1)*int(inputs.shape[0])):.5%}')
+                        cls_idx = clsf[-1] # 0 or 1 or 2
+                        acc = _summary[topk]/float(((step+1)*int(inputs.shape[0])))
+                        writer.add_scalar(f'Test-{cls_idx}/Accuracy-{topk}', acc, epoch)
+                        print(f'\tAccuracy {clsf}@{topk} ({step}/{len(dataloader)}) = {acc:.5%}')
                 return
 
 
-def run(pretrained_model):
-    log(f' :: Start training with {pretrained_model}')
+def run(pretrained_model, save_path='./racnn_result'):
+
+    print(f' :: Start training with {pretrained_model}')
     net = RACNN(num_classes=200).cuda()
     net.load_state_dict(torch.load(pretrained_model))
     cudnn.benchmark = True
@@ -73,31 +86,43 @@ def run(pretrained_model):
     testset = CUB200_loader('../CUB_200_2011', split='test')
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, collate_fn=trainset.CUB_collate, num_workers=4)
     testloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, collate_fn=testset.CUB_collate, num_workers=4)
-    sample = random_sample(testloader)
+    sample1, sample2 = random_sample(testloader)
+    log_path = os.path.join(save_path, 'log')
+    image_path = os.path.join(save_path, 'image')
+    writer = SummaryWriter(log_path)
+    total_step = 0
 
-    for epoch in range(50):
-        cls_loss = train(net, trainloader, cls_opt, epoch, 'backbone')
-        rank_loss = train(net, trainloader, apn_opt, epoch, 'apn')
-        test(net, testloader)
+    for epoch in range(100):
+
+        total_step = train(net, trainloader, cls_opt, epoch, 'backbone', writer=writer, total_step=total_step)
+        total_step = train(net, trainloader, apn_opt, epoch, 'apn', writer=writer, total_step=total_step)
+        test(net, testloader, writer=writer, epoch=epoch)
 
         # visualize cropped inputs
-        _, _, _, resized = net(sample.unsqueeze(0))
-        x1, x2 = resized[0].data, resized[1].data
-        save_img(x1, path=f'build/.cache/epoch_{epoch}@2x.jpg', annotation=f'cls_loss = {cls_loss:.7f}, rank_loss = {rank_loss:.7f}')
-        save_img(x2, path=f'build/.cache/epoch_{epoch}@4x.jpg', annotation=f'cls_loss = {cls_loss:.7f}, rank_loss = {rank_loss:.7f}')
+        _, _, _, resized_1 = net(sample1.unsqueeze(0))
+        x1, x2 = resized_1[0].data, resized_1[1].data
+        _, _, _, resized_2 = net(sample2.unsqueeze(0))
+        x3, x4 = resized_2[0].data, resized_2[1].data
+
+        save_img(x1, path=os.path.join(image_path, f'step_{step}@2x_1.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
+        save_img(x2, path=os.path.join(image_path, f'step_{step}@4x_1.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
+        save_img(x3, path=os.path.join(image_path, f'step_{step}@2x_2.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
+        save_img(x4, path=os.path.join(image_path, f'step_{step}@4x_2.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
+
 
         # save model per 10 epoches
-        if epoch % 10 == 0 and epoch != 0:
+        if epoch % 10 == 9:
             stamp = f'e{epoch}{int(time.time())}'
-            torch.save(net.state_dict, f'build/racnn_mobilenetv2_cub200-e{epoch}s{stamp}.pt')
-            log(f' :: Saved model dict as:\tbuild/racnn_mobilenetv2_cub200-e{epoch}s{stamp}.pt')
-            torch.save(cls_opt.state_dict(), f'build/cls_optimizer-s{stamp}.pt')
-            torch.save(apn_opt.state_dict(), f'build/apn_optimizer-s{stamp}.pt')
+            torch.save(net.state_dict, f'{save_path}/racnn-e{epoch}s{stamp}.pt')
+            print(f' :: Saved model dict as:\t{save_path}/racnn-e{epoch}s{stamp}.pt')
+            torch.save(cls_opt.state_dict(), f'{save_path}/clc_optimizer-e{epoch}s{stamp}.pt')
+            torch.save(apn_opt.state_dict(), f'{save_path}/apn_optimizer-e{epoch}s{stamp}.pt')
 
 
 if __name__ == "__main__":
-    clean()
+    save_path = './racnn_result'
+    clean(path=save_path)
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-    run(pretrained_model='build/racnn_pretrained.pt')
+    run(pretrained_model='build/racnn_pretrained.pt', save_path=save_path)
     build_gif(pattern='@2x', gif_name='racnn_cub200')
     build_gif(pattern='@4x', gif_name='racnn_cub200')
