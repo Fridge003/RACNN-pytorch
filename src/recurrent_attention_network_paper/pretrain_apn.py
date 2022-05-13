@@ -50,6 +50,7 @@ def run(pretrained_backbone=None, save_path='./apn_pretrain_result'):
     sample = random_sample(testloader)
     net.mode("pretrain_apn")
     log_path = os.path.join(save_path, 'log')
+    image_path = os.path.join(save_path, 'image')
     writer = SummaryWriter(log_path)
 
     def avg(x): return sum(x)/len(x)
@@ -63,24 +64,26 @@ def run(pretrained_backbone=None, save_path='./apn_pretrain_result'):
             avg_loss = avg(losses[-5 if len(losses) > 5 else -len(losses):])
             print(f':: loss @step{step:2d}: {loss}\tavg_loss_5: {avg_loss}')
 
-            if step % 100 == 0:  # check point
+            if step % 5 == 0:  # check point
                 _, _, _, resized = net(sample.unsqueeze(0))
                 x1, x2 = resized[0].data, resized[1].data
                 # visualize cropped inputs
-                save_img(x1, path=os.path.join(save_path, f'step_{step}@2x.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
-                save_img(x2, path=os.path.join(save_path, f'step_{step}@4x.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
 
-            if step >= 1024:  # 128 steps is enough for pretraining, to be modified
-                torch.save(net.state_dict(), f'apn_pretrain_result/racnn_pretrained-{int(time.time())}.pt')
+                save_img(x1, path=os.path.join(image_path, f'step_{step}@2x.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
+                save_img(x2, path=os.path.join(image_path, f'step_{step}@4x.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
+
+            if step >= 512:  # 128 steps is enough for pretraining, to be modified
+                torch.save(net.state_dict(), f'{save_path}/racnn_pretrained-{int(time.time())}.pt')
                 return
 
 
 def build_gif(pattern='@2x', gif_name='pretrain_apn_cub200', cache_path='./apn_pretrain_result'):
     # generate a gif, enjoy XD
-    files = [x for x in os.listdir(cache_path) if pattern in x]
+    image_path, gif_path = os.path.join(cache_path, 'image'), os.path.join(cache_path, 'gif')
+    files = [x for x in os.listdir(image_path) if pattern in x]
     files.sort(key=lambda x: int(x.split('@')[0].split('_')[-1]))
-    gif_images = [imageio.imread(f'{cache_path}/{img_file}') for img_file in files]
-    imageio.mimsave(f"build/{gif_name}{pattern}-{int(time.time())}.gif", gif_images, fps=8)
+    gif_images = [imageio.imread(f'{image_path}/{img_file}') for img_file in files]
+    imageio.mimsave(f"{gif_path}/{gif_name}{pattern}-{int(time.time())}.gif", gif_images, fps=8)
 
 
 def clean(path):
@@ -91,6 +94,10 @@ def clean(path):
     # create the log folder if not exists
     if not os.path.exists(os.path.join(save_path, 'log')):
         os.makedirs(os.path.join(save_path, 'log'))
+    if not os.path.exists(os.path.join(save_path, 'image')):
+        os.makedirs(os.path.join(save_path, 'image'))
+    if not os.path.exists(os.path.join(save_path, 'gif')):
+        os.makedirs(os.path.join(save_path, 'gif'))
 
 
 if __name__ == "__main__":
@@ -98,6 +105,6 @@ if __name__ == "__main__":
     save_path = './apn_pretrain_result'
     clean(save_path)
 
-    run(pretrained_backbone='build/pretrained_vgg.pt')
+    run(pretrained_backbone='build/pretrained_vgg.pt', save_path=save_path)
     build_gif(pattern='@2x', gif_name='pretrain_apn_cub200')
     build_gif(pattern='@4x', gif_name='pretrain_apn_cub200')
