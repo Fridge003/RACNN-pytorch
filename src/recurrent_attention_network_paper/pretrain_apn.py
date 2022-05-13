@@ -9,7 +9,6 @@ import time
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
 import torch.nn.functional as F
-import seaborn as sns
 import matplotlib.pyplot as plt
 from tensorboardX import SummaryWriter
 
@@ -28,7 +27,7 @@ def save_img(x, path, annotation=''):
 
 def random_sample(dataloader):
     for batch_idx, (inputs, _) in enumerate(dataloader, 0):
-        return inputs[0].cuda()
+        return inputs[0].cuda(), inputs[1].cuda()
 
 def run(pretrained_backbone=None, save_path='./apn_pretrain_result'):
     net = RACNN(num_classes=200).cuda()
@@ -47,7 +46,7 @@ def run(pretrained_backbone=None, save_path='./apn_pretrain_result'):
     testset = CUB200_loader('../CUB_200_2011', split='test')
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, collate_fn=trainset.CUB_collate, num_workers=4)
     testloader = torch.utils.data.DataLoader(testset, batch_size=4, shuffle=False, collate_fn=testset.CUB_collate, num_workers=4)
-    sample = random_sample(testloader)
+    sample1, sample2 = random_sample(testloader)
     net.mode("pretrain_apn")
     log_path = os.path.join(save_path, 'log')
     image_path = os.path.join(save_path, 'image')
@@ -64,15 +63,19 @@ def run(pretrained_backbone=None, save_path='./apn_pretrain_result'):
             avg_loss = avg(losses[-5 if len(losses) > 5 else -len(losses):])
             print(f':: loss @step{step:2d}: {loss}\tavg_loss_5: {avg_loss}')
 
-            if step % 5 == 0:  # check point
-                _, _, _, resized = net(sample.unsqueeze(0))
-                x1, x2 = resized[0].data, resized[1].data
+            if step % 2 == 0:  # check point
+                _, _, _, resized_1 = net(sample1.unsqueeze(0))
+                x1, x2 = resized_1[0].data, resized_1[1].data
+                _, _, _, resized2 = net(sample2.unsqueeze(0))
+                x3, x4 = resized_2[0].data, resized_2[1].data
                 # visualize cropped inputs
 
-                save_img(x1, path=os.path.join(image_path, f'step_{step}@2x.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
-                save_img(x2, path=os.path.join(image_path, f'step_{step}@4x.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
+                save_img(x1, path=os.path.join(image_path, f'step_{step}@2x_1.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
+                save_img(x2, path=os.path.join(image_path, f'step_{step}@4x_1.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
+                save_img(x3, path=os.path.join(image_path, f'step_{step}@2x_2.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
+                save_img(x4, path=os.path.join(image_path, f'step_{step}@4x_2.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
 
-            if step >= 512:  # 128 steps is enough for pretraining, to be modified
+            if step >= 128:  # 128 steps is enough for pretraining, to be modified
                 torch.save(net.state_dict(), f'{save_path}/racnn_pretrained-{int(time.time())}.pt')
                 return
 
@@ -106,5 +109,8 @@ if __name__ == "__main__":
     clean(save_path)
 
     run(pretrained_backbone='build/pretrained_vgg.pt', save_path=save_path)
-    build_gif(pattern='@2x', gif_name='pretrain_apn_cub200')
-    build_gif(pattern='@4x', gif_name='pretrain_apn_cub200')
+    build_gif(pattern='@2x_1', gif_name='pretrain_apn_cub200')
+    build_gif(pattern='@4x_1', gif_name='pretrain_apn_cub200')
+    build_gif(pattern='@2x_2', gif_name='pretrain_apn_cub200')
+    build_gif(pattern='@4x_2', gif_name='pretrain_apn_cub200')
+
