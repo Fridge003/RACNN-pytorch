@@ -109,8 +109,8 @@ if __name__ == "__main__":
     clean(path=save_path)
 
     run(pretrained_backbone='build/pretrained_vgg.pt', save_path=save_path)
-    build_gif(pattern='@2x_1', gif_name='pretrain_apn_cub200')
-    build_gif(pattern='@4x_1', gif_name='pretrain_apn_cub200')
-    build_gif(pattern='@2x_2', gif_name='pretrain_apn_cub200')
-    build_gif(pattern='@4x_2', gif_name='pretrain_apn_cub200')
+    build_gif(pattern='@2x_1', gif_name='pretrain_apn_cub200', cache_path=save_path)
+    build_gif(pattern='@4x_1', gif_name='pretrain_apn_cub200', cache_path=save_path)
+    build_gif(pattern='@2x_2', gif_name='pretrain_apn_cub200', cache_path=save_path)
+    build_gif(pattern='@4x_2', gif_name='pretrain_apn_cub200', cache_path=save_path)
 

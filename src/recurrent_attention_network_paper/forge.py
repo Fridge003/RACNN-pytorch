@@ -106,10 +106,10 @@ def run(pretrained_model, save_path='./racnn_result'):
         _, _, _, resized_2 = net(sample2.unsqueeze(0))
         x3, x4 = resized_2[0].data, resized_2[1].data
 
-        save_img(x1, path=os.path.join(image_path, f'step_{step}@2x_1.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
-        save_img(x2, path=os.path.join(image_path, f'step_{step}@4x_1.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
-        save_img(x3, path=os.path.join(image_path, f'step_{step}@2x_2.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
-        save_img(x4, path=os.path.join(image_path, f'step_{step}@4x_2.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
+        save_img(x1, path=os.path.join(image_path, f'epoch_{epoch}@2x_1.jpg'))
+        save_img(x2, path=os.path.join(image_path, f'epoch_{epoch}@4x_1.jpg'))
+        save_img(x3, path=os.path.join(image_path, f'epoch_{epoch}@2x_2.jpg'))
+        save_img(x4, path=os.path.join(image_path, f'epoch_{epoch}@4x_2.jpg'))
 
 
         # save model per 10 epoches
@@ -126,5 +126,7 @@ if __name__ == "__main__":
     clean(path=save_path)
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     run(pretrained_model='build/racnn_pretrained.pt', save_path=save_path)
-    build_gif(pattern='@2x', gif_name='racnn_cub200')
-    build_gif(pattern='@4x', gif_name='racnn_cub200')
+    build_gif(pattern='@2x_1', gif_name='racnn_cub200', cache_path=save_path)
+    build_gif(pattern='@4x_1', gif_name='racnn_cub200', cache_path=save_path)
+    build_gif(pattern='@2x_2', gif_name='racnn_cub200', cache_path=save_path)
+    build_gif(pattern='@4x_2', gif_name='racnn_cub200', cache_path=save_path)
