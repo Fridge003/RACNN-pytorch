@@ -94,13 +94,13 @@ def clean(path):
     if os.path.exists(path):
         shutil.rmtree(path)
     os.makedirs(path)
-    # create the log folder if not exists
-    if not os.path.exists(os.path.join(save_path, 'log')):
-        os.makedirs(os.path.join(save_path, 'log'))
-    if not os.path.exists(os.path.join(save_path, 'image')):
-        os.makedirs(os.path.join(save_path, 'image'))
-    if not os.path.exists(os.path.join(save_path, 'gif')):
-        os.makedirs(os.path.join(save_path, 'gif'))
+    # create the log, image & gif folders if not exists
+    if not os.path.exists(os.path.join(path, 'log')):
+        os.makedirs(os.path.join(path, 'log'))
+    if not os.path.exists(os.path.join(path, 'image')):
+        os.makedirs(os.path.join(path, 'image'))
+    if not os.path.exists(os.path.join(path, 'gif')):
+        os.makedirs(os.path.join(path, 'gif'))
 
 
 if __name__ == "__main__":

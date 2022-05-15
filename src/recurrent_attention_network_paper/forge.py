@@ -14,7 +14,7 @@ from tensorboardX import SummaryWriter
 sys.path.append('.')  # noqa: E402
 from src.recurrent_attention_network_paper.model import RACNN
 from src.recurrent_attention_network_paper.CUB_loader import CUB200_loader
-from src.recurrent_attention_network_paper.pretrain_apn import random_sample, save_img, clean, log, build_gif
+from src.recurrent_attention_network_paper.pretrain_apn import random_sample, save_img, clean, build_gif
 
 
 
