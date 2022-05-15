@@ -30,14 +30,16 @@ def train(net, dataloader, optimizer, epoch, _type, writer, total_step):
 
     for step, (inputs, targets) in enumerate(dataloader, 0):
         loss = net.echo(inputs, targets, optimizer)
-        writer.add_scalar('Train/step_loss', loss, total_step)
         losses += loss
         total_step += 1
 
         if step % 20 == 0 and step != 0:
             avg_loss = losses/20
             print(f':: loss @step({step:2d}/{len(dataloader)})-epoch{epoch}: {loss:.10f}\tavg_loss_20: {avg_loss:.10f}')
-            writer.add_scalar('Train/avg_loss', avg_loss, total_step)
+            if _type == 'backbone':
+                writer.add_scalar('Train/backbone_loss', avg_loss, total_step)
+            if _type == 'apn':
+                writer.add_scalar('Train/apn_loss', avg_loss, total_step)
             losses = 0
 
     return total_step
@@ -90,12 +92,12 @@ def run(pretrained_model, save_path='./racnn_result'):
     log_path = os.path.join(save_path, 'log')
     image_path = os.path.join(save_path, 'image')
     writer = SummaryWriter(log_path)
-    total_step = 0
+    total_step_1, total_step_2 = 0, 0
 
     for epoch in range(100):
 
-        total_step = train(net, trainloader, cls_opt, epoch, 'backbone', writer=writer, total_step=total_step)
-        total_step = train(net, trainloader, apn_opt, epoch, 'apn', writer=writer, total_step=total_step)
+        total_step_1 = train(net, trainloader, cls_opt, epoch, 'backbone', writer=writer, total_step=total_step_1)
+        total_step_2 = train(net, trainloader, apn_opt, epoch, 'apn', writer=writer, total_step=total_step_2)
         test(net, testloader, writer=writer, epoch=epoch)
 
         # visualize cropped inputs
