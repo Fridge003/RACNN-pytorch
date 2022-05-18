@@ -214,7 +214,7 @@ class RACNN(nn.Module):
     # control the cross area of the two boxes in the third layer
     @staticmethod
     def box_area_loss(attens):
-        loss = torch.tensor(0.0)
+        loss = torch.tensor(0.0).cuda()
         scale_3a, scale_3b = attens[1], attens[2]
         batch_size = attens[1].shape[0]
         for batch_id in range(0, batch_size):
@@ -222,13 +222,13 @@ class RACNN(nn.Module):
             l1, r1, u1, d1 = cut_outside_parts(box3a) # left/right/up/low(down) bound of the box
             l2, r2, u2, d2 = cut_outside_parts(box3b)
             if d1 > u2 or d2 > u1 or l1 > r2 or l2 > r1:
-                batch_loss = torch.tensor(0.0)
+                batch_loss = torch.tensor(0.0).cuda()
             else:
                 inter_up = u1 if u1 < u2 else u2
                 inter_down = d1 if d1 > d2 else d2
                 inter_left = l1 if l1 > l2 else l2
                 inter_right = r1 if r1 < r2 else r2
-                batch_loss = (inter_up - inter_down) * (inter_right - inter_left)
+                batch_loss = (inter_up - inter_down) * (inter_right - inter_left).cuda()
             # print(batch_loss)
             loss += batch_loss
         return loss
