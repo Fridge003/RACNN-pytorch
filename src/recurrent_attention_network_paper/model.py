@@ -6,6 +6,10 @@ from torch.autograd import Variable
 from torchvision.models import mobilenet
 from torchvision.models import vgg19_bn
 
+# add two boxes to the third layer
+# control the size of the third scale, no more than half of the last scale
+# control the distance between the two boxes of the third scale
+#
 
 class AttentionCropFunction(torch.autograd.Function):
     @staticmethod
@@ -23,7 +27,11 @@ class AttentionCropFunction(torch.autograd.Function):
         for i in range(images.size(0)):
             tx, ty, tl = locs[i][0], locs[i][1], locs[i][2]
             # add constraints to tx, ty, tl
-            tl = tl if tl > (in_size/3) else in_size/3
+            if in_size == 448: # scale_1 to scale_2
+                tl = tl if tl > (in_size / 3) else in_size / 3
+            else:  # scale_2 to scale_3a/scale_3b
+                tl = tl if tl > (in_size / 4) else in_size / 4
+                tl = tl if tl < (in_size / 2) else in_size / 2
             tx = tx if tx > tl else tl
             tx = tx if tx < in_size-tl else in_size-tl
             ty = ty if ty > tl else tl
@@ -95,6 +103,7 @@ class RACNN(nn.Module):
         self.b1 = vgg19_bn(num_classes=num_classes)
         self.b2 = vgg19_bn(num_classes=num_classes)
         self.b3 = vgg19_bn(num_classes=num_classes)
+        self.fc3 = nn.Linear(1024, 512)
         self.classifier1 = nn.Linear(512, num_classes)
         self.classifier2 = nn.Linear(512, num_classes)
         self.classifier3 = nn.Linear(512, num_classes)
@@ -113,6 +122,12 @@ class RACNN(nn.Module):
             nn.Linear(1024, 3),
             nn.Sigmoid(),
         )
+        self.apn3 = nn.Sequential(
+            nn.Linear(512 * 7 * 7, 1024),
+            nn.Tanh(),
+            nn.Linear(1024, 3),
+            nn.Sigmoid(),
+        )
         self.echo = None
 
     def forward(self, x):
@@ -124,20 +139,27 @@ class RACNN(nn.Module):
         pool_s1 = self.feature_pool(feature_s1) # torch.Size([b, 512, 1, 1])
         _attention_s1 = self.apn1(feature_s1.view(-1, 512 * 14 * 14))
         attention_s1 = _attention_s1 * rescale_tl # t_l should be no more than half of the length
-        resized_s1 = self.crop_resize(x, attention_s1 * x.shape[-1])
-        # forward @scale-2
+        resized_s1 = self.crop_resize(x, attention_s1 * x.shape[-1])  # torch.Size([b, 3, 224, 224])
+        # forward @scale-2, produce two sets of attention features
         feature_s2 = self.b2.features(resized_s1)  # torch.Size([b, 512, 7, 7])
         pool_s2 = self.feature_pool(feature_s2)
         _attention_s2 = self.apn2(feature_s2.view(-1, 512 * 7 * 7))
         attention_s2 = _attention_s2 * rescale_tl
-        resized_s2 = self.crop_resize(resized_s1, attention_s2 * resized_s1.shape[-1])
-        # forward @scale-3
-        feature_s3 = self.b3.features(resized_s2)
-        pool_s3 = self.feature_pool(feature_s3)
+        resized_s2 = self.crop_resize(resized_s1, attention_s2 * resized_s1.shape[-1]) # torch.Size([b, 3, 224, 224])
+        _attention_s3 = self.apn3(feature_s2.view(-1, 512 * 7 * 7))
+        attention_s3 = _attention_s3 * rescale_tl
+        resized_s3 = self.crop_resize(resized_s1, attention_s3 * resized_s1.shape[-1])
+        # forward @scale-3a / @scale-3b
+        feature_s3a = self.b3.features(resized_s2)
+        feature_s3b = self.b3.features(resized_s3) # torch.Size([b, 512, 7, 7])
+        pool_s3a = self.feature_pool(feature_s3a).view(-1, 512)
+        pool_s3b = self.feature_pool(feature_s3b).view(-1, 512)
+        pool_s3 = self.fc3(torch.cat((pool_s3a, pool_s3b), dim=-1))
         pred1 = self.classifier1(pool_s1.view(-1, 512))
         pred2 = self.classifier2(pool_s2.view(-1, 512))
         pred3 = self.classifier3(pool_s3.view(-1, 512))
-        return [pred1, pred2, pred3], [feature_s1, feature_s2], [attention_s1, attention_s2], [resized_s1, resized_s2]
+
+        return [pred1, pred2, pred3], [feature_s1, feature_s2], [attention_s1, attention_s2, attention_s3], [resized_s1, resized_s2, resized_s3]
 
     def __get_weak_loc(self, features):
         ret = []   # search regions with the highest response value in conv5
@@ -176,6 +198,10 @@ class RACNN(nn.Module):
             loss += (pts[1] - pts[2] + margin).clamp(min=0)
         return loss
 
+    # control the cross area of the two boxes in the third layer
+    def box_area_loss(self):
+        pass
+
     def __echo_pretrain_apn(self, inputs, optimizer):
         inputs = Variable(inputs).cuda()
         _, features, attens, _ = self.forward(inputs)
@@ -183,7 +209,8 @@ class RACNN(nn.Module):
         optimizer.zero_grad()
         weak_loss1 = F.smooth_l1_loss(attens[0], weak_loc[0].cuda())
         weak_loss2 = F.smooth_l1_loss(attens[1], weak_loc[1].cuda())
-        loss = weak_loss1 + weak_loss2
+        weak_loss3 = F.smooth_l1_loss(attens[2], weak_loc[1].cuda())
+        loss = weak_loss1 + weak_loss2 + weak_loss3
         loss.backward()
         optimizer.step()
         return loss.item()

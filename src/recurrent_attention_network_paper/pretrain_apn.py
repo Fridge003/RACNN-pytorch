@@ -44,7 +44,7 @@ def run(pretrained_backbone=None, save_path='./apn_pretrain_result'):
 
     trainset = CUB200_loader('../CUB_200_2011', split='train')
     testset = CUB200_loader('../CUB_200_2011', split='test')
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, collate_fn=trainset.CUB_collate, num_workers=4)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=8, shuffle=True, collate_fn=trainset.CUB_collate, num_workers=4)
     testloader = torch.utils.data.DataLoader(testset, batch_size=4, shuffle=False, collate_fn=testset.CUB_collate, num_workers=4)
     sample1, sample2 = random_sample(testloader)
     net.mode("pretrain_apn")
@@ -65,15 +65,17 @@ def run(pretrained_backbone=None, save_path='./apn_pretrain_result'):
 
             if step % 2 == 0:  # check point
                 _, _, _, resized_1 = net(sample1.unsqueeze(0))
-                x1, x2 = resized_1[0].data, resized_1[1].data
+                x1, x2, x3= resized_1[0].data, resized_1[1].data, resized_1[2].data
                 _, _, _, resized_2 = net(sample2.unsqueeze(0))
-                x3, x4 = resized_2[0].data, resized_2[1].data
+                x4, x5, x6 = resized_2[0].data, resized_2[1].data, resized_2[2].data
                 # visualize cropped inputs
 
                 save_img(x1, path=os.path.join(image_path, f'step_{step}@2x_1.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
-                save_img(x2, path=os.path.join(image_path, f'step_{step}@4x_1.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
-                save_img(x3, path=os.path.join(image_path, f'step_{step}@2x_2.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
-                save_img(x4, path=os.path.join(image_path, f'step_{step}@4x_2.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
+                save_img(x2, path=os.path.join(image_path, f'step_{step}@4x_1a.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
+                save_img(x3, path=os.path.join(image_path, f'step_{step}@4x_1b.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
+                save_img(x4, path=os.path.join(image_path, f'step_{step}@2x_2.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
+                save_img(x5, path=os.path.join(image_path, f'step_{step}@4x_2a.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
+                save_img(x6, path=os.path.join(image_path, f'step_{step}@4x_2b.jpg'), annotation=f'loss = {avg_loss:.7f}, step = {step}')
 
             if step >= 128:  # 128 steps is enough for pretraining, to be modified
                 torch.save(net.state_dict(), f'{save_path}/racnn_pretrained-{int(time.time())}.pt')
@@ -110,7 +112,10 @@ if __name__ == "__main__":
 
     run(pretrained_backbone='build/pretrained_vgg.pt', save_path=save_path)
     build_gif(pattern='@2x_1', gif_name='pretrain_apn_cub200', cache_path=save_path)
-    build_gif(pattern='@4x_1', gif_name='pretrain_apn_cub200', cache_path=save_path)
+    build_gif(pattern='@4x_1a', gif_name='pretrain_apn_cub200', cache_path=save_path)
+    build_gif(pattern='@4x_1b', gif_name='pretrain_apn_cub200', cache_path=save_path)
     build_gif(pattern='@2x_2', gif_name='pretrain_apn_cub200', cache_path=save_path)
-    build_gif(pattern='@4x_2', gif_name='pretrain_apn_cub200', cache_path=save_path)
+    build_gif(pattern='@4x_2a', gif_name='pretrain_apn_cub200', cache_path=save_path)
+    build_gif(pattern='@4x_2b', gif_name='pretrain_apn_cub200', cache_path=save_path)
+
 
