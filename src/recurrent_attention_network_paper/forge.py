@@ -95,8 +95,6 @@ def run(pretrained_model, save_path='./racnn_result'):
     total_step_1, total_step_2 = 0, 0
 
     for epoch in range(100):
-        if epoch == 0:
-            total_step_2 = train(net, trainloader, apn_opt, epoch, 'apn', writer=writer, total_step=total_step_2)
         total_step_1 = train(net, trainloader, cls_opt, epoch, 'backbone', writer=writer, total_step=total_step_1)
         total_step_2 = train(net, trainloader, apn_opt, epoch, 'apn', writer=writer, total_step=total_step_2)
         test(net, testloader, writer=writer, epoch=epoch)
