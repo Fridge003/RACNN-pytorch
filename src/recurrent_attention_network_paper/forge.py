@@ -59,7 +59,7 @@ def test(net, dataloader, writer, epoch):
                 correct_summary[f'clsf-{idx}']['top-1'] += torch.eq(logits.topk(max((1, 1)), 1, True, True)[1], labels.view(-1, 1)).sum().float().item()  # top-1
                 correct_summary[f'clsf-{idx}']['top-5'] += torch.eq(logits.topk(max((1, 5)), 1, True, True)[1], labels.view(-1, 1)).sum().float().item()  # top-5
 
-            if step > 300: # only use a portion of the test-dataset for testing
+            if step > 500: # only use a portion of the test-dataset for testing
                 for clsf in correct_summary.keys():
                     _summary = correct_summary[clsf]
                     for topk in _summary.keys():
@@ -77,9 +77,9 @@ def run(pretrained_model, save_path='./racnn_result'):
     net.load_state_dict(torch.load(pretrained_model))
     cudnn.benchmark = True
 
-    cls_params = list(net.b1.parameters()) + list(net.b2.parameters()) + list(net.b3.parameters()) + \
+    cls_params = list(net.b1.parameters()) + list(net.b2.parameters()) + list(net.b3.parameters()) + list(net.fc3.parameters()) + \
         list(net.classifier1.parameters()) + list(net.classifier2.parameters()) + list(net.classifier3.parameters())
-    apn_params = list(net.apn1.parameters()) + list(net.apn2.parameters())
+    apn_params = list(net.apn1.parameters()) + list(net.apn2.parameters()) + list(net.apn3.parameters())
 
     cls_opt = optim.SGD(cls_params, lr=0.001, momentum=0.9)
     apn_opt = optim.SGD(apn_params, lr=0.001, momentum=0.9)
@@ -102,15 +102,16 @@ def run(pretrained_model, save_path='./racnn_result'):
 
         # visualize cropped inputs
         _, _, _, resized_1 = net(sample1.unsqueeze(0))
-        x1, x2 = resized_1[0].data, resized_1[1].data
+        x1, x2, x3= resized_1[0].data, resized_1[1].data, resized_1[2].data
         _, _, _, resized_2 = net(sample2.unsqueeze(0))
-        x3, x4 = resized_2[0].data, resized_2[1].data
+        x4, x5, x6 = resized_2[0].data, resized_2[1].data, resized_2[2].data
 
         save_img(x1, path=os.path.join(image_path, f'epoch_{epoch}@2x_1.jpg'))
-        save_img(x2, path=os.path.join(image_path, f'epoch_{epoch}@4x_1.jpg'))
-        save_img(x3, path=os.path.join(image_path, f'epoch_{epoch}@2x_2.jpg'))
-        save_img(x4, path=os.path.join(image_path, f'epoch_{epoch}@4x_2.jpg'))
-
+        save_img(x2, path=os.path.join(image_path, f'epoch_{epoch}@4x_1a.jpg'))
+        save_img(x3, path=os.path.join(image_path, f'epoch_{epoch}@4x_1b.jpg'))
+        save_img(x4, path=os.path.join(image_path, f'epoch_{epoch}@2x_2.jpg'))
+        save_img(x5, path=os.path.join(image_path, f'epoch_{epoch}@4x_2a.jpg'))
+        save_img(x6, path=os.path.join(image_path, f'epoch_{epoch}@4x_2b.jpg'))
 
         # save model per 10 epoches
         if epoch % 10 == 9:
@@ -120,13 +121,18 @@ def run(pretrained_model, save_path='./racnn_result'):
             torch.save(cls_opt.state_dict(), f'{save_path}/clc_optimizer-e{epoch}s{stamp}.pt')
             torch.save(apn_opt.state_dict(), f'{save_path}/apn_optimizer-e{epoch}s{stamp}.pt')
 
+        # save gif per 20 epochs
+        if epoch % 25 == 24:
+            build_gif(pattern='@2x_1', gif_name=f'e{epoch}_racnn_cub200', cache_path=save_path)
+            build_gif(pattern='@4x_1a', gif_name=f'e{epoch}_racnn_cub200', cache_path=save_path)
+            build_gif(pattern='@4x_1b', gif_name=f'e{epoch}_racnn_cub200', cache_path=save_path)
+            build_gif(pattern='@2x_2', gif_name=f'e{epoch}_racnn_cub200', cache_path=save_path)
+            build_gif(pattern='@4x_2a', gif_name=f'e{epoch}_racnn_cub200', cache_path=save_path)
+            build_gif(pattern='@4x_2b', gif_name=f'e{epoch}_racnn_cub200', cache_path=save_path)
+
 
 if __name__ == "__main__":
     save_path = './racnn_result'
     clean(path=save_path)
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     run(pretrained_model='build/racnn_pretrained.pt', save_path=save_path)
-    build_gif(pattern='@2x_1', gif_name='racnn_cub200', cache_path=save_path)
-    build_gif(pattern='@4x_1', gif_name='racnn_cub200', cache_path=save_path)
-    build_gif(pattern='@2x_2', gif_name='racnn_cub200', cache_path=save_path)
-    build_gif(pattern='@4x_2', gif_name='racnn_cub200', cache_path=save_path)

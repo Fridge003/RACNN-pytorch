@@ -39,7 +39,7 @@ def run(pretrained_backbone=None, save_path='./apn_pretrain_result'):
 
     cudnn.benchmark = True
 
-    params = list(net.apn1.parameters()) + list(net.apn2.parameters())
+    params = list(net.apn1.parameters()) + list(net.apn2.parameters()) + list(net.apn3.parameters())
     optimizer = optim.SGD(params, lr=0.001, momentum=0.9)
 
     trainset = CUB200_loader('../CUB_200_2011', split='train')

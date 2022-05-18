@@ -198,9 +198,34 @@ class RACNN(nn.Module):
             loss += (pts[1] - pts[2] + margin).clamp(min=0)
         return loss
 
+
+
+    @staticmethod
+    def cut_outside_parts(box):
+        # box is a tensor in the form of [tx, ty, tl]
+        tx, ty, tl = box[0], box[1], box[2]
+
+        # to ensure that the box is totally located in the image
+        tx = tx if tx > tl else tl
+        tx = tx if tx < 1-tl else 1-tl
+        ty = ty if ty > tl else tl
+        ty = ty if ty < 1-tl else 1-tl
+
+        return tx, ty, tl
+
     # control the cross area of the two boxes in the third layer
-    def box_area_loss(self):
-        pass
+    @staticmethod
+    def box_area_loss(attens):
+        total_area = 224 * 224
+        loss = 0
+        for atten in attens:
+            _, box3a, box3b = atten
+            x1, y1, l1 = cut_outside_parts(box3a)
+            x2, y2, l2 = cut_outside_parts(box3b)
+
+
+            loss += 0.01
+        return loss
 
     def __echo_pretrain_apn(self, inputs, optimizer):
         inputs = Variable(inputs).cuda()
@@ -225,10 +250,11 @@ class RACNN(nn.Module):
         return loss.item()
 
     def __echo_apn(self, inputs, targets, optimizer):
+        lambda_1 = 0.5
         inputs, targets = Variable(inputs).cuda(), Variable(targets).cuda()
-        logits, _, _, _ = self.forward(inputs)
+        logits, _, attens, _ = self.forward(inputs)
         optimizer.zero_grad()
-        loss = self.rank_loss(logits, targets)
+        loss = self.rank_loss(logits, targets) + lambda_1 * self.box_area_loss(attens)
         loss.backward()
         optimizer.step()
         return loss.item()
