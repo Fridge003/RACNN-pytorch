@@ -216,7 +216,7 @@ class RACNN(nn.Module):
     def box_area_loss(attens):
         loss = torch.tensor(0.0)
         scale_3a, scale_3b = attens[1], attens[2]
-        batch_size = attens.shape[-1]
+        batch_size = attens[1].shape[0]
         for batch_id in range(0, batch_size):
             box3a, box3b = scale_3a[batch_id], scale_3b[batch_id]
             l1, r1, u1, d1 = cut_outside_parts(box3a) # left/right/up/low(down) bound of the box
