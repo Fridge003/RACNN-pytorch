@@ -9,7 +9,20 @@ from torchvision.models import vgg19_bn
 # add two boxes to the third layer
 # control the size of the third scale, no more than half of the last scale
 # control the distance between the two boxes of the third scale
-#
+# hyperparameters: 1. box length constraint  2.margin  3.the coefficient of box-dist-loss 4.learning rate of optimizer
+
+def cut_outside_parts(box):
+    # box is a tensor in the form of [tx, ty, tl]
+    tx, ty, tl = box[0], box[1], box[2]
+
+    # to ensure that the box is totally located in the image
+    tx = tx if tx > tl else tl
+    tx = tx if tx < 1-tl else 1-tl
+    ty = ty if ty > tl else tl
+    ty = ty if ty < 1-tl else 1-tl
+
+    return tx-tl, tx+tl, ty+tl, ty-tl
+
 
 class AttentionCropFunction(torch.autograd.Function):
     @staticmethod
@@ -30,8 +43,8 @@ class AttentionCropFunction(torch.autograd.Function):
             if in_size == 448: # scale_1 to scale_2
                 tl = tl if tl > (in_size / 3) else in_size / 3
             else:  # scale_2 to scale_3a/scale_3b
-                tl = tl if tl > (in_size / 4) else in_size / 4
-                tl = tl if tl < (in_size / 2) else in_size / 2
+                tl = tl if tl > (in_size / 6) else in_size / 6
+                tl = tl if tl < (in_size / 3) else in_size / 3
             tx = tx if tx > tl else tl
             tx = tx if tx < in_size-tl else in_size-tl
             ty = ty if ty > tl else tl
@@ -198,33 +211,26 @@ class RACNN(nn.Module):
             loss += (pts[1] - pts[2] + margin).clamp(min=0)
         return loss
 
-
-
-    @staticmethod
-    def cut_outside_parts(box):
-        # box is a tensor in the form of [tx, ty, tl]
-        tx, ty, tl = box[0], box[1], box[2]
-
-        # to ensure that the box is totally located in the image
-        tx = tx if tx > tl else tl
-        tx = tx if tx < 1-tl else 1-tl
-        ty = ty if ty > tl else tl
-        ty = ty if ty < 1-tl else 1-tl
-
-        return tx, ty, tl
-
     # control the cross area of the two boxes in the third layer
     @staticmethod
     def box_area_loss(attens):
-        total_area = 224 * 224
-        loss = 0
-        for atten in attens:
-            _, box3a, box3b = atten
-            x1, y1, l1 = cut_outside_parts(box3a)
-            x2, y2, l2 = cut_outside_parts(box3b)
-
-
-            loss += 0.01
+        loss = torch.tensor(0.0)
+        scale_3a, scale_3b = attens[1], attens[2]
+        batch_size = attens.shape[-1]
+        for batch_id in range(0, batch_size):
+            box3a, box3b = scale_3a[batch_id], scale_3b[batch_id]
+            l1, r1, u1, d1 = cut_outside_parts(box3a) # left/right/up/low(down) bound of the box
+            l2, r2, u2, d2 = cut_outside_parts(box3b)
+            if d1 > u2 or d2 > u1 or l1 > r2 or l2 > r1:
+                batch_loss = torch.tensor(0.0)
+            else:
+                inter_up = u1 if u1 < u2 else u2
+                inter_down = d1 if d1 > d2 else d2
+                inter_left = l1 if l1 > l2 else l2
+                inter_right = r1 if r1 < r2 else r2
+                batch_loss = (inter_up - inter_down) * (inter_right - inter_left)
+            # print(batch_loss)
+            loss += batch_loss
         return loss
 
     def __echo_pretrain_apn(self, inputs, optimizer):
@@ -250,7 +256,7 @@ class RACNN(nn.Module):
         return loss.item()
 
     def __echo_apn(self, inputs, targets, optimizer):
-        lambda_1 = 0.5
+        lambda_1 = 1.5
         inputs, targets = Variable(inputs).cuda(), Variable(targets).cuda()
         logits, _, attens, _ = self.forward(inputs)
         optimizer.zero_grad()
