@@ -59,7 +59,7 @@ def test(net, dataloader, writer, epoch):
                 correct_summary[f'clsf-{idx}']['top-1'] += torch.eq(logits.topk(max((1, 1)), 1, True, True)[1], labels.view(-1, 1)).sum().float().item()  # top-1
                 correct_summary[f'clsf-{idx}']['top-5'] += torch.eq(logits.topk(max((1, 5)), 1, True, True)[1], labels.view(-1, 1)).sum().float().item()  # top-5
 
-            if step > 500: # only use a portion of the test-dataset for testing
+            if step > 200: # only use a portion of the test-dataset for testing
                 for clsf in correct_summary.keys():
                     _summary = correct_summary[clsf]
                     for topk in _summary.keys():
@@ -121,7 +121,7 @@ def run(pretrained_model, save_path='./racnn_result'):
             torch.save(apn_opt.state_dict(), f'{save_path}/apn_optimizer-e{epoch}s{stamp}.pt')
 
         # save gif per 20 epochs
-        if epoch % 25 == 24:
+        if epoch % 20 == 19:
             build_gif(pattern='@2x_1', gif_name=f'e{epoch}_racnn_cub200', cache_path=save_path)
             build_gif(pattern='@4x_1a', gif_name=f'e{epoch}_racnn_cub200', cache_path=save_path)
             build_gif(pattern='@4x_1b', gif_name=f'e{epoch}_racnn_cub200', cache_path=save_path)
