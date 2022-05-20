@@ -44,8 +44,8 @@ class AttentionCropFunction(torch.autograd.Function):
             if in_size == 448: # scale_1 to scale_2
                 tl = tl if tl > (in_size / 3) else in_size / 3
             else:  # scale_2 to scale_3a/scale_3b
-                tl = tl if tl > (in_size / 4) else in_size / 4
-                tl = tl if tl < (in_size * 3 / 8) else in_size * 3 / 8
+                tl = tl if tl > (in_size / 6) else in_size / 6
+                tl = tl if tl < (in_size / 3) else in_size / 3
             tx = tx if tx > tl else tl
             tx = tx if tx < in_size-tl else in_size-tl
             ty = ty if ty > tl else tl
@@ -257,7 +257,7 @@ class RACNN(nn.Module):
         return loss.item()
 
     def __echo_apn(self, inputs, targets, optimizer):
-        lambda_1 = 0.1
+        lambda_1 = 10
         inputs, targets = Variable(inputs).cuda(), Variable(targets).cuda()
         logits, _, attens, _ = self.forward(inputs)
         optimizer.zero_grad()
