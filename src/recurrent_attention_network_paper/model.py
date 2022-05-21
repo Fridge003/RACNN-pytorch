@@ -257,7 +257,7 @@ class RACNN(nn.Module):
         return loss.item()
 
     def __echo_apn(self, inputs, targets, optimizer):
-        lambda_1 = 10
+        lambda_1 = 0.5
         inputs, targets = Variable(inputs).cuda(), Variable(targets).cuda()
         logits, _, attens, _ = self.forward(inputs)
         optimizer.zero_grad()
