@@ -37,9 +37,9 @@ def train(net, dataloader, optimizer, epoch, _type, writer, total_step):
             avg_loss = losses/20
             print(f':: loss @step({step:2d}/{len(dataloader)})-epoch{epoch}: {loss:.10f}\tavg_loss_20: {avg_loss:.10f}')
             if _type == 'backbone':
-                writer.add_scalar('Train/backbone_loss', avg_loss, total_step)
+                writer.add_scalar('Train_continue/backbone_loss', avg_loss, total_step)
             if _type == 'apn':
-                writer.add_scalar('Train/apn_loss', avg_loss, total_step)
+                writer.add_scalar('Train_continue/apn_loss', avg_loss, total_step)
             losses = 0
 
     return total_step
@@ -70,7 +70,7 @@ def test(net, dataloader, writer, epoch):
                 return
 
 
-def run(pretrained_model, save_path='./racnn_result'):
+def run(pretrained_model, save_path='./racnn_result', from_breakpoint=0):
 
     print(f' :: Start training with {pretrained_model}')
     net = RACNN(num_classes=200).cuda()
@@ -84,6 +84,10 @@ def run(pretrained_model, save_path='./racnn_result'):
     cls_opt = optim.SGD(cls_params, lr=0.001, momentum=0.9)
     apn_opt = optim.SGD(apn_params, lr=0.001, momentum=0.9)
 
+    if from_breakpoint > 0:
+        cls_opt.load_state_dict(torch.load('build/clc_opt_pretrained.pt'))
+        apn_opt.load_state_dict(torch.load('build/apn_opt_pretrained.pt'))
+
     trainset = CUB200_loader('../CUB_200_2011', split='train')
     testset = CUB200_loader('../CUB_200_2011', split='test')
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, collate_fn=trainset.CUB_collate, num_workers=4)
@@ -94,7 +98,7 @@ def run(pretrained_model, save_path='./racnn_result'):
     writer = SummaryWriter(log_path)
     total_step_1, total_step_2 = 0, 0
 
-    for epoch in range(100):
+    for epoch in range(from_breakpoint, from_breakpoint + 100):
         total_step_1 = train(net, trainloader, cls_opt, epoch, 'backbone', writer=writer, total_step=total_step_1)
         total_step_2 = train(net, trainloader, apn_opt, epoch, 'apn', writer=writer, total_step=total_step_2)
         test(net, testloader, writer=writer, epoch=epoch)
@@ -134,4 +138,4 @@ if __name__ == "__main__":
     save_path = './racnn_result'
     clean(path=save_path)
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-    run(pretrained_model='build/racnn_pretrained.pt', save_path=save_path)
+    run(pretrained_model='build/racnn_pretrained.pt', save_path=save_path, from_breakpoint=90)

@@ -93,9 +93,8 @@ def build_gif(pattern='@2x', gif_name='pretrain_apn_cub200', cache_path='./apn_p
 
 def clean(path):
     print(' :: Cleaning cache dir ...')
-    if os.path.exists(path):
-        shutil.rmtree(path)
-    os.makedirs(path)
+    if not os.path.exists(path):
+        os.makedirs(path)
     # create the log, image & gif folders if not exists
     if not os.path.exists(os.path.join(path, 'log')):
         os.makedirs(os.path.join(path, 'log'))
